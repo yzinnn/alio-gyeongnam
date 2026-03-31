@@ -19,18 +19,36 @@ export default async function handler(req, res) {
     }
 
     const API_KEY = process.env.ALIO_API_KEY;
+    if (!API_KEY) {
+      return res.status(500).json({ success: false, error: "ALIO_API_KEY not set" });
+    }
+
     const BASE = "https://opendata.alio.go.kr/new/v1/recruit/list.do";
     let allItems = [];
 
-    // 데이터 누락 방지를 위해 30페이지까지 스캔
+    // 가장 안정적이었던 원조 통신 방식으로 복구 (강제 문자열 변환 및 헤더 추가)
     for (let pageNo = 1; pageNo <= 30; pageNo++) {
       const url = `${BASE}?serviceKey=${encodeURIComponent(API_KEY)}&numOfRows=100&pageNo=${pageNo}&resultType=json`;
-      const resp = await fetch(url, { method: "POST" });
-      const json = await resp.json();
-      if (json.resultCode !== "000" && json.resultCode !== "0" && json.resultCode !== "200") break;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
+        signal: AbortSignal.timeout(15000),
+      });
+      const text = await resp.text();
+      if (text.startsWith("<")) break; // XML 에러 뱉으면 스탑
+
+      let json;
+      try { json = JSON.parse(text); } catch (e) { break; }
+
+      // 숫자로 오든 문자로 오든 강제로 문자로 바꿔서 0인지 체크
+      const code = String(json.resultCode);
+      if (code !== "0" && code !== "200") break;
+
       const items = json.result || [];
-      allItems.push(...(Array.isArray(items) ? items : [items]));
-      if (items.length < 100) break;
+      if (Array.isArray(items)) { allItems.push(...items); }
+      else if (items && typeof items === "object") { allItems.push(items); }
+      
+      if (items.length === 0) break;
     }
 
     const filtered = allItems
@@ -39,20 +57,19 @@ export default async function handler(req, res) {
         const hireNames = String(item.hireTypeNmLst || "");
         const title = String(item.recrutPbancTtl || "");
         
-        // 1. 진짜 정규직 필터 복구 (R1010 코드가 있거나 이름에 정규직)
+        // 1. 진짜 정규직 필터
         const isRegular = hireTypes.includes("R1010") || hireNames.includes("정규직");
         
-        // 2. 짭규직 암살 (단기, 대체, 계약 등 제목에 있으면 무조건 컷)
+        // 2. 짭규직 암살
         const fakeRegularRegex = /인턴|기간제|촉탁|계약|단기|대체|위촉|별정|일용|노무|알바|수습|체험|휴직/;
         const isFake = fakeRegularRegex.test(title) || fakeRegularRegex.test(hireNames);
 
         // 3. 특수 전형 제외
         const isSpecial = /보훈|장애|고졸/.test(title) || /보훈|장애|고졸/.test(hireNames);
 
-        // 진짜 정규직이 아니거나, 짭규직이거나, 특수전형이면 제외
         if (!isRegular || isFake || isSpecial) return false;
 
-        return true; // 전국 데이터 모두 가져옴
+        return true;
       })
       .map((item) => {
         const ncsCodes = String(item.ncsCdLst || "");
