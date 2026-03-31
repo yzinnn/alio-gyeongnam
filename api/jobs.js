@@ -59,31 +59,38 @@ export default async function handler(req, res) {
 
     const filtered = allItems
       .filter((item) => {
-        // 1. 빡센 정규직 필터 (계약직, 인턴 제외)
         const hireTypes = String(item.hireTypeLst || "");
         const hireNames = String(item.hireTypeNmLst || "");
         const title = String(item.recrutPbancTtl || "");
         
+        // 1. 정규직 필터 & 인턴/기간제 제외
         const isRegular = hireTypes.includes("R1010") || hireNames.includes("정규직");
-        const isInternOrContract = title.includes("인턴") || title.includes("기간제") || title.includes("촉탁");
+        const isTemp = /인턴|기간제|촉탁/.test(title) || /인턴|기간제|촉탁/.test(hireNames);
         
-        if (!isRegular || isInternOrContract) return false;
+        // 2. 특수 전형(보훈, 장애, 고졸) 완벽 제외
+        const isSpecial = /보훈|장애|고졸/.test(title) || /보훈|장애|고졸/.test(hireNames);
 
-        // 2. 경남 지역 전체 통과 (창원, 진주 등 모두 포함)
-        const regions = String(item.workRgnLst || "");
-        const regionNames = String(item.workRgnNmLst || "");
-        return regions.includes("R3022") || regionNames.includes("경남") || regionNames.includes("창원") || regionNames.includes("진주");
+        if (!isRegular || isTemp || isSpecial) return false;
+        
+        // 전국 데이터를 모두 가져오기 위해 지역 필터 제거 (프론트에서 제어)
+        return true;
       })
       .map((item) => {
         const ncsCodes = String(item.ncsCdLst || "");
         const ncsNames = String(item.ncsCdNmLst || "");
         const companyName = String(item.instNm || "");
+        const regions = String(item.workRgnLst || "");
+        const regionNames = String(item.workRgnNmLst || "");
         
+        // 기계직, 이전기관, 경남근무지 독립적 판별
         const isMachine = ncsCodes.includes("R600015") || ncsNames.includes("기계");
-        
-        // 이전 공공기관 여부 판별
         const isTransferAgency = GYEONGNAM_AGENCIES.some(agency => companyName.includes(agency));
-        const locationTag = isTransferAgency ? "경남(이전기관)" : "경남(일반)";
+        const isGyeongnam = regions.includes("R3022") || regionNames.includes("경남") || regionNames.includes("창원") || regionNames.includes("진주");
+
+        // 카드 노출용 위치 태그 최적화
+        let locationTag = regionNames.split(',')[0] || "전국";
+        if (isTransferAgency) locationTag = "이전기관(가점)";
+        else if (isGyeongnam) locationTag = "경남(근무지)";
 
         return {
           id: item.recrutPblntSn || 0,
@@ -91,7 +98,8 @@ export default async function handler(req, res) {
           title: item.recrutPbancTtl || "",
           type: "정규직", 
           isMachine,
-          isTransferAgency, // 프론트엔드 필터용 플래그
+          isTransferAgency, 
+          isGyeongnam,
           category: item.ncsCdNmLst || "",
           location: locationTag,
           address: item.workRgnNmLst || "",

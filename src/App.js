@@ -2,11 +2,11 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 const API_URL = "/api/jobs";
 
-// 데모 데이터 복구 (일반 경남 기관 + 이전기관 섞어서)
+// 데모 데이터: 전국, 경남, 이전기관 구분
 const DEMO = [
-  {id:1,company:"(데모) 한국남동발전",title:"2026 발전설비 기계직 정규직 채용",type:"정규직",isMachine:true,isTransferAgency:true,category:"기계",location:"경남(이전기관)",address:"경남 고성",startDate:"2026-03-24",endDate:"2026-04-10",people:5,url:"https://job.alio.go.kr",ongoing:true},
-  {id:2,company:"(데모) 한국재료연구원",title:"기계설계 정규직 연구원",type:"정규직",isMachine:true,isTransferAgency:false,category:"기계",location:"경남(일반)",address:"경남 창원",startDate:"2026-03-25",endDate:"2026-04-15",people:2,url:"https://job.alio.go.kr",ongoing:true},
-  {id:3,company:"(데모) 중소벤처기업진흥공단",title:"일반행정 정규직 채용",type:"정규직",isMachine:false,isTransferAgency:true,category:"경영·행정",location:"경남(이전기관)",address:"경남 진주",startDate:"2026-03-28",endDate:"2026-04-18",people:8,url:"https://job.alio.go.kr",ongoing:true},
+  {id:1,company:"(데모) 한국남동발전",title:"2026 발전설비 기계직 정규직 채용",type:"정규직",isMachine:true,isTransferAgency:true,isGyeongnam:true,category:"기계",location:"이전기관(가점)",address:"경남 고성",startDate:"2026-03-24",endDate:"2026-04-10",people:5,url:"https://job.alio.go.kr",ongoing:true},
+  {id:2,company:"(데모) 한국재료연구원",title:"기계설계 정규직 연구원",type:"정규직",isMachine:true,isTransferAgency:false,isGyeongnam:true,category:"기계",location:"경남(근무지)",address:"경남 창원",startDate:"2026-03-25",endDate:"2026-04-15",people:2,url:"https://job.alio.go.kr",ongoing:true},
+  {id:3,company:"(데모) 한국철도공사",title:"상반기 기계직 정규직 채용",type:"정규직",isMachine:true,isTransferAgency:false,isGyeongnam:false,category:"기계",location:"대전",address:"대전",startDate:"2026-03-28",endDate:"2026-04-18",people:15,url:"https://job.alio.go.kr",ongoing:true},
 ];
 
 const DAYS_KR = ["일","월","화","수","목","금","토"];
@@ -40,8 +40,8 @@ export default function App() {
   const [yr, setYr] = useState(now.getFullYear());
   const [mo, setMo] = useState(now.getMonth());
   const [sel, setSel] = useState(null);
-  const [lf, setLf] = useState("전체"); // 지역 필터 (전체 / 경남일반 / 경남이전기관)
-  const [mf, setMf] = useState("전체"); // 직무 필터 (전체 / 기계직)
+  const [lf, setLf] = useState("전국"); 
+  const [mf, setMf] = useState("전체"); 
   const [showFav, setShowFav] = useState(false);
   const [jobs, setJobs] = useState([]);
   const [ld, setLd] = useState(true);
@@ -99,9 +99,9 @@ export default function App() {
     return () => clearInterval(ref.current);
   }, [load]);
 
-  // 새로운 필터 로직: 지역 필터 + 직무 필터 + 관심공고
+  // 독립적 필터링 적용 (전국 / 경남근무지 / 이전기관)
   const fj = jobs.filter(j => 
-    (lf === "전체" || (lf === "경남(이전기관)" && j.isTransferAgency) || (lf === "경남(일반)" && !j.isTransferAgency)) &&
+    (lf === "전국" || (lf === "경남(근무지)" && j.isGyeongnam) || (lf === "가점(이전기관)" && j.isTransferAgency)) &&
     (mf === "전체" || (mf === "기계직" && j.isMachine)) &&
     (!showFav || favorites[j.id])
   );
@@ -164,7 +164,7 @@ export default function App() {
         <div className="tag-group">
           <span className="tag" style={{ background: "#eff6ff", color: "#2563eb" }}>{job.type}</span>
           {job.isMachine && <span className="tag" style={{ background: "#fffbeb", color: "#b45309" }}>기계직</span>}
-          <span className="tag tag-location" style={{ background: job.isTransferAgency ? "#ecfdf5" : "#f1f5f9", color: job.isTransferAgency ? "#059669" : "#475569" }}>
+          <span className="tag tag-location" style={{ background: job.isTransferAgency ? "#ecfdf5" : (job.isGyeongnam ? "#fefce8" : "#f1f5f9"), color: job.isTransferAgency ? "#059669" : (job.isGyeongnam ? "#a16207" : "#475569") }}>
             {job.location}
           </span>
           {job.people > 0 && <span className="people-count">{job.people}명</span>}
@@ -304,7 +304,7 @@ export default function App() {
     <div className="header-top">
       <div className="title-area">
         <span className="label">JOB ALIO</span>
-        <h1>경남 정규직 채용 달력</h1>
+        <h1>공공기관 정규직 채용 달력</h1>
       </div>
       <div className="update-info">
         {ld ? (
@@ -324,11 +324,10 @@ export default function App() {
         <div className="stat-pill stat-orange"><span>{act.filter(j=>j.isMachine).length}</span>기계직</div>
       </div>
       <div className="filter-row">
-        {/* 새롭게 추가된 지역 필터 버튼들 */}
         <div className="filter-group">
-          <button className={`filter-btn ${lf==="전체"?"active":""}`} onClick={() => setLf("전체")}>경남 전체</button>
-          <button className={`filter-btn ${lf==="경남(일반)"?"active":""}`} onClick={() => setLf("경남(일반)")}>경남 일반기관</button>
-          <button className={`filter-btn ${lf==="경남(이전기관)"?"active":""}`} onClick={() => setLf("경남(이전기관)")}>가점(이전기관)</button>
+          <button className={`filter-btn ${lf==="전국"?"active":""}`} onClick={() => setLf("전국")}>전국</button>
+          <button className={`filter-btn ${lf==="경남(근무지)"?"active":""}`} onClick={() => setLf("경남(근무지)")}>경남(근무지)</button>
+          <button className={`filter-btn ${lf==="가점(이전기관)"?"active":""}`} onClick={() => setLf("가점(이전기관)")}>가점(이전기관)</button>
         </div>
         <div style={{ width: 1, background: "#e2e8f0" }}/>
         <div className="filter-group">
