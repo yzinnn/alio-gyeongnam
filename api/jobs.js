@@ -48,7 +48,7 @@ export default async function handler(req, res) {
         const isRegular = hireTypes.includes("R1010") || hireNames.includes("정규직");
         const fakeRegularRegex = /인턴|기간제|촉탁|계약|단기|대체|위촉|별정|일용|노무|알바|수습|체험|휴직/;
         const isFake = fakeRegularRegex.test(title) || fakeRegularRegex.test(hireNames);
-        const isSpecial = /보훈|장애|고졸/.test(title) || /보훈|장애|고졸/.test(hireNames);
+        const isSpecial = /보훈|장애|고졸|석사|박사/.test(title) || /보훈|장애|고졸|석사|박사/.test(hireNames);
 
         return isRegular && !isFake && !isSpecial;
       })
@@ -61,9 +61,16 @@ export default async function handler(req, res) {
         // ⭐️ 기계직 (NCS R600015) 
         const isMachine = ncsCodes.includes("R600015");
         
-        // ⭐️ 기술직 전체 (NCS 건설~환경에너지 코드군) 
-        const techCodes = ["R600014", "R600015", "R600016", "R600017", "R600019", "R600020", "R600023"];
-        const isTech = techCodes.some(code => ncsCodes.includes(code));
+        // ── 기술직: 기계직 가능성 있는 공고 포착 ──
+        // 조건1: 제목/내용에 기계 관련 키워드 포함
+        const techInclude = /기계|설비|플랜트|용접|배관|금형|자동화|메카|열처리|유압|공압|냉동|냉각|보일러|터빈|엔진|정비|생산기술|품질관리|비파괴|CAD|CAM/;
+        // 조건2: 다른 직렬 키워드가 없어야 함 (오탐 방지)
+        const techExclude = /전기|전자|통신|화학|건축|토목|환경|IT|소프트웨어|SW|ICT/;
+
+        const hasTechKeyword = techInclude.test(title);
+        const hasOtherField = techExclude.test(title);
+
+        const isTechnical = hasTechKeyword && !hasOtherField;
         
         const isTransferAgency = GYEONGNAM_AGENCIES.some(agency => companyName.includes(agency));
         const isGyeongnam = regions.includes("R3022") || regionNames.includes("경남") || regionNames.includes("창원") || regionNames.includes("진주");
