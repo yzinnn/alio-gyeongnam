@@ -19,14 +19,9 @@ export default async function handler(req, res) {
     }
 
     const API_KEY = process.env.ALIO_API_KEY;
-    if (!API_KEY) {
-      return res.status(500).json({ success: false, error: "ALIO_API_KEY not set" });
-    }
-
     const BASE = "https://opendata.alio.go.kr/new/v1/recruit/list.do";
     let allItems = [];
 
-    // 가장 안정적이었던 원조 통신 방식으로 복구 (강제 문자열 변환 및 헤더 추가)
     for (let pageNo = 1; pageNo <= 30; pageNo++) {
       const url = `${BASE}?serviceKey=${encodeURIComponent(API_KEY)}&numOfRows=100&pageNo=${pageNo}&resultType=json`;
       const resp = await fetch(url, {
@@ -35,12 +30,11 @@ export default async function handler(req, res) {
         signal: AbortSignal.timeout(15000),
       });
       const text = await resp.text();
-      if (text.startsWith("<")) break; // XML 에러 뱉으면 스탑
+      if (text.startsWith("<")) break;
 
       let json;
       try { json = JSON.parse(text); } catch (e) { break; }
 
-      // 숫자로 오든 문자로 오든 강제로 문자로 바꿔서 0인지 체크
       const code = String(json.resultCode);
       if (code !== "0" && code !== "200") break;
 
@@ -57,18 +51,12 @@ export default async function handler(req, res) {
         const hireNames = String(item.hireTypeNmLst || "");
         const title = String(item.recrutPbancTtl || "");
         
-        // 1. 진짜 정규직 필터
         const isRegular = hireTypes.includes("R1010") || hireNames.includes("정규직");
-        
-        // 2. 짭규직 암살
         const fakeRegularRegex = /인턴|기간제|촉탁|계약|단기|대체|위촉|별정|일용|노무|알바|수습|체험|휴직/;
         const isFake = fakeRegularRegex.test(title) || fakeRegularRegex.test(hireNames);
-
-        // 3. 특수 전형 제외
         const isSpecial = /보훈|장애|고졸/.test(title) || /보훈|장애|고졸/.test(hireNames);
 
         if (!isRegular || isFake || isSpecial) return false;
-
         return true;
       })
       .map((item) => {
@@ -79,7 +67,15 @@ export default async function handler(req, res) {
         const regions = String(item.workRgnLst || "");
         const regionNames = String(item.workRgnNmLst || "");
         
-        const isMachine = ncsCodes.includes("R600015") || /기계|기술|설비|정비|엔지니어|플랜트/.test(title) || ncsNames.includes("기계");
+        // 1. 엄격한 기계직 (NCS 기계 R600015 또는 명시적 기계 직무)
+        const isMachine = ncsCodes.includes("R600015") || ncsNames.includes("기계") || title.includes("기계");
+        
+        // 2. 넓은 범위의 기술직 (기계 포함, 전기/전자, 정보통신, 건설, 환경, 화학 등 이공계 전반)
+        const techNcs = ["R600014", "R600015", "R600016", "R600017", "R600019", "R600020", "R600023"];
+        const hasTechNcs = techNcs.some(c => ncsCodes.includes(c));
+        // 기관명에 포함된 '기술'은 무시하고 직무/제목에 있는 기술 키워드만 잡음
+        const hasTechKeyword = /설비|정비|엔지니어|플랜트|전기|전자|통신|건축|토목|환경|화학/.test(title) || (title.includes("기술") && !companyName.includes("기술"));
+        const isTech = isMachine || hasTechNcs || hasTechKeyword;
         
         const isTransferAgency = GYEONGNAM_AGENCIES.some(agency => companyName.includes(agency));
         const isGyeongnam = regions.includes("R3022") || regionNames.includes("경남") || regionNames.includes("창원") || regionNames.includes("진주");
@@ -94,6 +90,7 @@ export default async function handler(req, res) {
           title: title,
           type: "정규직", 
           isMachine,
+          isTech, // 기술직 속성 추가
           isTransferAgency, 
           isGyeongnam,
           location: locationTag,

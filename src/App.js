@@ -3,15 +3,16 @@ import { useState, useEffect, useCallback, useRef } from "react";
 const API_URL = "/api/jobs";
 
 const DEMO = [
-  {id:1,company:"(데모) 한국남동발전",title:"2026 발전설비 기계직 정규직 채용",type:"정규직",isMachine:true,isTransferAgency:true,isGyeongnam:true,category:"기계",location:"이전기관(가점)",address:"경남 고성",startDate:"2026-03-24",endDate:"2026-04-10",people:5,url:"https://job.alio.go.kr",ongoing:true},
-  {id:2,company:"(데모) 한국재료연구원",title:"기계설계 정규직 연구원",type:"정규직",isMachine:true,isTransferAgency:false,isGyeongnam:true,category:"기계",location:"경남(근무지)",address:"경남 창원",startDate:"2026-03-25",endDate:"2026-04-15",people:2,url:"https://job.alio.go.kr",ongoing:true},
-  {id:3,company:"(데모) 한국철도공사",title:"상반기 기계직 정규직 채용",type:"정규직",isMachine:true,isTransferAgency:false,isGyeongnam:false,category:"기계",location:"대전",address:"대전",startDate:"2026-03-28",endDate:"2026-04-18",people:15,url:"https://job.alio.go.kr",ongoing:true},
+  {id:1,company:"(데모) 한국남동발전",title:"2026 발전설비 기계직 정규직 채용",type:"정규직",isMachine:true,isTech:true,isTransferAgency:true,isGyeongnam:true,category:"기계",location:"이전기관(가점)",address:"경남 고성",startDate:"2026-03-24",endDate:"2026-04-10",people:5,url:"https://job.alio.go.kr",ongoing:true},
+  {id:2,company:"(데모) 한국토지주택공사",title:"상반기 건축/토목 기술직 채용",type:"정규직",isMachine:false,isTech:true,isTransferAgency:true,isGyeongnam:true,category:"건설",location:"이전기관(가점)",address:"경남 진주",startDate:"2026-03-25",endDate:"2026-04-15",people:10,url:"https://job.alio.go.kr",ongoing:true},
+  {id:3,company:"(데모) 한국기술교육대학교",title:"학습전략 컨설팅 담당자 모집",type:"정규직",isMachine:false,isTech:false,isTransferAgency:false,isGyeongnam:false,category:"일반",location:"충남",address:"충남 천안",startDate:"2026-03-28",endDate:"2026-04-18",people:3,url:"https://job.alio.go.kr",ongoing:true},
 ];
 
 const DAYS_KR = ["일","월","화","수","목","금","토"];
 
 function getDIM(y, m) { return new Date(y, m + 1, 0).getDate(); }
 function getFD(y, m) { return new Date(y, m, 1).getDay(); }
+function fmt(d) { const x = new Date(d); return `${x.getMonth()+1}/${x.getDate()}`; }
 function inR(d, s, e) {
   const a = new Date(d), b = new Date(s), c = new Date(e);
   a.setHours(0,0,0,0); b.setHours(0,0,0,0); c.setHours(0,0,0,0);
@@ -38,10 +39,12 @@ export default function App() {
   const [yr, setYr] = useState(now.getFullYear());
   const [mo, setMo] = useState(now.getMonth());
   const [sel, setSel] = useState(null);
-  const [viewTab, setViewTab] = useState("all"); 
+  const [viewTab, setViewTab] = useState("all");
+  
   const [lf, setLf] = useState("전국"); 
   const [mf, setMf] = useState("전체"); 
   const [showFav, setShowFav] = useState(false);
+  
   const [jobs, setJobs] = useState([]);
   const [ld, setLd] = useState(true);
   const [demo, setDemo] = useState(false);
@@ -98,10 +101,11 @@ export default function App() {
     return () => clearInterval(ref.current);
   }, [load]);
 
+  // 필터 로직 업데이트: 기술직, 기계직 분리
   const fj = jobs.filter(j => 
     (viewTab === "all" || (viewTab === "applied" && applied[j.id])) &&
     (lf === "전국" || (lf === "경남(근무지)" && j.isGyeongnam) || (lf === "가점(이전기관)" && j.isTransferAgency)) &&
-    (mf === "전체" || (mf === "기계직" && j.isMachine)) &&
+    (mf === "전체" || (mf === "기술직" && j.isTech) || (mf === "기계직" && j.isMachine)) &&
     (!showFav || favorites[j.id])
   );
 
@@ -134,7 +138,7 @@ export default function App() {
 
     return (
       <div className={`modern-card ${isApplied ? "applied-card" : ""}`}>
-        <div className="card-accent" style={{ background: job.isMachine ? "#f59e0b" : "#3b82f6" }} />
+        <div className="card-accent" style={{ background: job.isMachine ? "#f59e0b" : (job.isTech ? "#8b5cf6" : "#3b82f6") }} />
         <div className="card-header">
           <div className="card-title-group" style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
             <button onClick={(e) => { e.stopPropagation(); toggleFavorite(job.id); }} className="fav-btn">
@@ -145,6 +149,7 @@ export default function App() {
               <p className="job-title">{job.title}</p>
             </div>
           </div>
+          {/* 미감 복구: 버튼과 뱃지가 예쁘게 떨어지도록 flex 재설정 */}
           <div className="card-action-group">
             <span className={`d-day-badge ${d.u || d.x ? "urgent" : ""}`}>{d.t}</span>
             <button onClick={(e) => { e.stopPropagation(); window.open(targetUrl, "_blank"); }} className="link-btn">링크</button>
@@ -152,7 +157,14 @@ export default function App() {
         </div>
         <div className="tag-group">
           <span className="tag" style={{ background: "#eff6ff", color: "#2563eb" }}>{job.type}</span>
-          {job.isMachine && <span className="tag" style={{ background: "#fffbeb", color: "#b45309" }}>기계직</span>}
+          
+          {/* 기술직/기계직 태그 분리 적용 */}
+          {job.isMachine ? (
+            <span className="tag" style={{ background: "#fffbeb", color: "#b45309" }}>기계직</span>
+          ) : job.isTech ? (
+            <span className="tag" style={{ background: "#f5f3ff", color: "#6d28d9" }}>기술직</span>
+          ) : null}
+
           <span className="tag tag-location" style={{ background: job.isTransferAgency ? "#ecfdf5" : (job.isGyeongnam ? "#fefce8" : "#f1f5f9"), color: job.isTransferAgency ? "#059669" : (job.isGyeongnam ? "#a16207" : "#475569") }}>
             {job.location}
           </span>
@@ -160,13 +172,11 @@ export default function App() {
         </div>
         <div className="card-footer">
           <span className="date-range">{job.startDate} ~ {job.endDate}</span>
-          {showCheck && (
-            <label className="checkbox-wrapper" onClick={(e) => e.stopPropagation()}>
-              <input type="checkbox" checked={!!isApplied} onChange={() => toggleApplied(job.id)} />
-              <div className="custom-checkbox">{isApplied ? "✓" : ""}</div>
-              <span className={`checkbox-label ${isApplied ? "checked-text" : ""}`}>{isApplied ? "지원완료" : "미지원"}</span>
-            </label>
-          )}
+          <label className="checkbox-wrapper" onClick={(e) => e.stopPropagation()}>
+            <input type="checkbox" checked={!!isApplied} onChange={() => toggleApplied(job.id)} />
+            <div className="custom-checkbox">{isApplied ? "✓" : ""}</div>
+            <span className={`checkbox-label ${isApplied ? "checked-text" : ""}`}>{isApplied ? "지원완료" : "미지원"}</span>
+          </label>
         </div>
       </div>
     );
@@ -185,7 +195,6 @@ export default function App() {
     .update-info { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #64748b; }
     .update-btn { background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; }
     
-    /* 상단 대형 탭 */
     .view-tabs { display: flex; gap: 20px; border-bottom: 2px solid #f1f5f9; margin-bottom: 16px; }
     .view-tab { padding: 8px 4px; font-size: 15px; font-weight: 700; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
     .view-tab.active { color: #2563eb; border-bottom-color: #2563eb; }
@@ -213,17 +222,32 @@ export default function App() {
     .scroll-area::-webkit-scrollbar { width: 5px; }
     .scroll-area::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 
-    .modern-card { background: #ffffff; border-radius: 10px; padding: 14px; border: 1px solid #e2e8f0; margin-bottom: 10px; position: relative; overflow: hidden; }
+    /* 여기서부터 미감 완벽 복구 */
+    .modern-card { background: #ffffff; border-radius: 10px; padding: 16px; border: 1px solid #e2e8f0; margin-bottom: 12px; position: relative; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     .applied-card { opacity: 0.6; }
-    .card-accent { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
-    .fav-btn { background: none; border: none; font-size: 16px; cursor: pointer; color: #fbbf24; }
-    .tag-group { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; padding-left: 24px; }
-    .tag { padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
-    .people-count { font-size: 11px; color: #64748b; font-weight: 700; margin-left: 4px; }
-    .card-footer { display: flex; justify-content: space-between; border-top: 1px dashed #e2e8f0; padding-top: 10px; padding-left: 24px; }
+    .card-accent { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+    .fav-btn { background: none; border: none; font-size: 18px; cursor: pointer; color: #fbbf24; margin-top: -2px; }
+    
+    .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; gap: 12px; }
+    .card-title-group { flex: 1; }
+    .company-name { font-size: 15px; font-weight: 800; color: #0f172a; margin-bottom: 4px; line-height: 1.4; word-break: keep-all; }
+    .job-title { font-size: 13px; color: #475569; line-height: 1.4; word-break: keep-all; }
+    
+    /* 우측 버튼 그룹 여백 및 정렬 완벽 수정 */
+    .card-action-group { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
+    .d-day-badge { background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 800; text-align: center; min-width: 52px; }
+    .d-day-badge.urgent { background: #fef2f2; color: #dc2626; }
+    .link-btn { background: #eff6ff; color: #2563eb; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 800; cursor: pointer; transition: background 0.2s; width: 100%; text-align: center; }
+    .link-btn:hover { background: #dbeafe; }
+
+    .tag-group { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; padding-left: 26px; align-items: center; }
+    .tag { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: -0.3px; }
+    .people-count { font-size: 12px; color: #64748b; font-weight: 700; margin-left: 4px; }
+    
+    .card-footer { display: flex; justify-content: space-between; border-top: 1px dashed #e2e8f0; padding-top: 12px; padding-left: 26px; align-items: center; }
     .checkbox-wrapper { display: flex; align-items: center; gap: 6px; cursor: pointer; }
     .checkbox-wrapper input { display: none; }
-    .custom-checkbox { width: 16px; height: 16px; border: 2px solid #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px; }
+    .custom-checkbox { width: 18px; height: 18px; border: 2px solid #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px; transition: all 0.2s; }
     input:checked + .custom-checkbox { background: #0f172a; border-color: #0f172a; }
 
     .error-banner { background: #fef2f2; border-bottom: 1px solid #fca5a5; color: #b91c1c; padding: 10px 5%; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
@@ -262,10 +286,14 @@ export default function App() {
         ))}
       </div>
       <div style={{ width: 1, background: "#e2e8f0" }}/>
+      
+      {/* 기술/기계 직무 분리 필터 */}
       <div className="filter-group">
         <button className={`filter-btn ${mf==="전체"?"active":""}`} onClick={() => setMf("전체")}>전체 직무</button>
+        <button className={`filter-btn ${mf==="기술직"?"active":""}`} onClick={() => setMf("기술직")}>기술직 전체</button>
         <button className={`filter-btn ${mf==="기계직"?"active":""}`} onClick={() => setMf("기계직")}>기계직만</button>
       </div>
+      
       <div style={{ width: 1, background: "#e2e8f0" }}/>
       <button className={`filter-btn ${showFav ? "active" : ""}`} onClick={() => setShowFav(!showFav)} style={{ color: showFav ? "#fff" : "#fbbf24" }}>⭐ 관심공고</button>
     </div>
@@ -295,7 +323,7 @@ export default function App() {
                   <span className="date-num" style={{color: dIdx===0?'#ef4444':dIdx===6?'#3b82f6':''}}>{day}</span>
                   <div style={{ display: "flex", gap: "3px", marginTop: "auto", flexWrap: "wrap" }}>
                     {dj.slice(0, 3).map((job, k) => (
-                      <div key={k} style={{ width: "6px", height: "6px", borderRadius: "50%", background: job.isMachine ? "#f59e0b" : "#3b82f6" }} />
+                      <div key={k} style={{ width: "6px", height: "6px", borderRadius: "50%", background: job.isMachine ? "#f59e0b" : (job.isTech ? "#8b5cf6" : "#3b82f6") }} />
                     ))}
                     {dj.length > 3 && <span style={{ fontSize: "10px", fontWeight: "700" }}>+{dj.length - 3}</span>}
                   </div>
