@@ -19,45 +19,43 @@ export default async function handler(req, res) {
     }
 
     const API_KEY = process.env.ALIO_API_KEY;
+    if (!API_KEY) throw new Error("API_KEY not set");
+
     const BASE = "https://opendata.alio.go.kr/new/v1/recruit/list.do";
-    let allItems = [];
 
-    for (let pageNo = 1; pageNo <= 30; pageNo++) {
-      const url = `${BASE}?serviceKey=${encodeURIComponent(API_KEY)}&numOfRows=100&pageNo=${pageNo}&resultType=json`;
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
-        signal: AbortSignal.timeout(15000),
-      });
-      const text = await resp.text();
-      if (text.startsWith("<")) break;
+    // ⭐️ Vercel 10초 타임아웃 방지: 병렬(동시) 렌더링 함수
+    const fetchPage = async (pageNo) => {
+      try {
+        const url = `${BASE}?serviceKey=${encodeURIComponent(API_KEY)}&numOfRows=100&pageNo=${pageNo}&resultType=json`;
+        const resp = await fetch(url, { method: "POST" });
+        const text = await resp.text();
+        if (text.startsWith("<")) return [];
+        const json = JSON.parse(text);
+        if (String(json.resultCode) !== "0" && String(json.resultCode) !== "200") return [];
+        const items = json.result || [];
+        return Array.isArray(items) ? items : [items];
+      } catch (e) {
+        return [];
+      }
+    };
 
-      let json;
-      try { json = JSON.parse(text); } catch (e) { break; }
-
-      const code = String(json.resultCode);
-      if (code !== "0" && code !== "200") break;
-
-      const items = json.result || [];
-      if (Array.isArray(items)) { allItems.push(...items); }
-      else if (items && typeof items === "object") { allItems.push(items); }
-      
-      if (items.length === 0) break;
-    }
+    // 1~10페이지(진행 중인 공고 1000건)를 동시에 가져와서 1~2초 컷
+    const pages = Array.from({ length: 10 }, (_, i) => i + 1);
+    const results = await Promise.all(pages.map(fetchPage));
+    const allItems = results.flat();
 
     const filtered = allItems
       .filter((item) => {
+        if (!item) return false;
         const hireTypes = String(item.hireTypeLst || "");
         const hireNames = String(item.hireTypeNmLst || "");
         const title = String(item.recrutPbancTtl || "");
         
         // 정규직 필터
         const isRegular = hireTypes.includes("R1010") || hireNames.includes("정규직");
-        
         // 짭규직 컷
         const fakeRegularRegex = /인턴|기간제|촉탁|계약|단기|대체|위촉|별정|일용|노무|알바|수습|체험|휴직/;
         const isFake = fakeRegularRegex.test(title) || fakeRegularRegex.test(hireNames);
-
         // 특수 전형 컷
         const isSpecial = /보훈|장애|고졸/.test(title) || /보훈|장애|고졸/.test(hireNames);
 
@@ -70,8 +68,8 @@ export default async function handler(req, res) {
         const regions = String(item.workRgnLst || "");
         const regionNames = String(item.workRgnNmLst || "");
         
-        // ⭐️ 오직 공공기관 공식 NCS 기계직 코드(R600015)만 100% 엄격하게 판별 (텍스트 매칭 일절 삭제)
-        const isMachine = ncsCodes.includes("R600015"); [cite: 36]
+        // 오직 R600015 코드만 살림
+        const isMachine = ncsCodes.includes("R600015");
         
         const isTransferAgency = GYEONGNAM_AGENCIES.some(agency => companyName.includes(agency));
         const isGyeongnam = regions.includes("R3022") || regionNames.includes("경남") || regionNames.includes("창원") || regionNames.includes("진주");
@@ -97,9 +95,12 @@ export default async function handler(req, res) {
         };
       });
 
-    cachedData = filtered;
+    // 중복 제거
+    const uniqueFiltered = Array.from(new Map(filtered.map(item => [item.id, item])).values());
+
+    cachedData = uniqueFiltered;
     cacheTimestamp = now;
-    return res.status(200).json({ success: true, data: filtered, lastUpdated: new Date(now).toISOString() });
+    return res.status(200).json({ success: true, data: uniqueFiltered, lastUpdated: new Date(now).toISOString() });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
