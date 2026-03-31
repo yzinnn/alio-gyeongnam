@@ -15,14 +15,14 @@ export default async function handler(req, res) {
   try {
     const now = Date.now();
     if (!forceRefresh && cachedData && now - cacheTimestamp < CACHE_TTL) {
-      return res.status(200).json({ success: true, cached: true, data: cachedData });
+      return res.status(200).json({ success: true, data: cachedData });
     }
 
     const API_KEY = process.env.ALIO_API_KEY;
     const BASE = "https://opendata.alio.go.kr/new/v1/recruit/list.do";
     let allItems = [];
 
-    // 데이터 누락 방지를 위해 페이지를 충분히 가져옵니다.
+    // 데이터 누락 방지를 위해 30페이지까지 스캔
     for (let pageNo = 1; pageNo <= 30; pageNo++) {
       const url = `${BASE}?serviceKey=${encodeURIComponent(API_KEY)}&numOfRows=100&pageNo=${pageNo}&resultType=json`;
       const resp = await fetch(url, { method: "POST" });
@@ -35,17 +35,24 @@ export default async function handler(req, res) {
 
     const filtered = allItems
       .filter((item) => {
+        const hireTypes = String(item.hireTypeLst || "");
         const hireNames = String(item.hireTypeNmLst || "");
         const title = String(item.recrutPbancTtl || "");
         
-        // 1. 짭규직 암살 (단기, 대체, 계약 등 제목에 있으면 무조건 컷)
+        // 1. 진짜 정규직 필터 복구 (R1010 코드가 있거나 이름에 정규직)
+        const isRegular = hireTypes.includes("R1010") || hireNames.includes("정규직");
+        
+        // 2. 짭규직 암살 (단기, 대체, 계약 등 제목에 있으면 무조건 컷)
         const fakeRegularRegex = /인턴|기간제|촉탁|계약|단기|대체|위촉|별정|일용|노무|알바|수습|체험|휴직/;
-        if (fakeRegularRegex.test(title) || fakeRegularRegex.test(hireNames)) return false;
+        const isFake = fakeRegularRegex.test(title) || fakeRegularRegex.test(hireNames);
 
-        // 2. 특수 전형 제외
-        if (/보훈|장애|고졸/.test(title) || /보훈|장애|고졸/.test(hireNames)) return false;
+        // 3. 특수 전형 제외
+        const isSpecial = /보훈|장애|고졸/.test(title) || /보훈|장애|고졸/.test(hireNames);
 
-        return true;
+        // 진짜 정규직이 아니거나, 짭규직이거나, 특수전형이면 제외
+        if (!isRegular || isFake || isSpecial) return false;
+
+        return true; // 전국 데이터 모두 가져옴
       })
       .map((item) => {
         const ncsCodes = String(item.ncsCdLst || "");
@@ -55,7 +62,6 @@ export default async function handler(req, res) {
         const regions = String(item.workRgnLst || "");
         const regionNames = String(item.workRgnNmLst || "");
         
-        // [수정] 기계직 코드(R600015) 뿐만 아니라 '기술', '설비', '정비' 등 기술직 키워드 포함 시 기계직군으로 분류 
         const isMachine = ncsCodes.includes("R600015") || /기계|기술|설비|정비|엔지니어|플랜트/.test(title) || ncsNames.includes("기계");
         
         const isTransferAgency = GYEONGNAM_AGENCIES.some(agency => companyName.includes(agency));
@@ -74,8 +80,8 @@ export default async function handler(req, res) {
           isTransferAgency, 
           isGyeongnam,
           location: locationTag,
-          startDate: item.pbancBgngYmd,
-          endDate: item.pbancEndYmd,
+          startDate: normDate(item.pbancBgngYmd),
+          endDate: normDate(item.pbancEndYmd),
           people: parseInt(item.recrutNope) || 0,
           url: item.srcUrl || `https://job.alio.go.kr/recruitView.do?recrutPblntSn=${item.recrutPblntSn}`,
           ongoing: item.ongoingYn === "Y",
@@ -88,4 +94,12 @@ export default async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
+}
+
+function normDate(d) {
+  if (!d) return "";
+  const s = String(d).replace(/[.\-/\s]/g, "");
+  if (s.length === 8) return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+  if (/^\d{4}-\d{2}-\d{2}/.test(d)) return String(d).slice(0,10);
+  return String(d);
 }

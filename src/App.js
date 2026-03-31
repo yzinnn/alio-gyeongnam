@@ -39,10 +39,13 @@ export default function App() {
   const [yr, setYr] = useState(now.getFullYear());
   const [mo, setMo] = useState(now.getMonth());
   const [sel, setSel] = useState(null);
-  const [viewTab, setViewTab] = useState("all"); // 'all' (전체) 또는 'applied' (지원함)
+  const [viewTab, setViewTab] = useState("all");
+  
+  // 경남 버전 전용 지역 필터 세팅
   const [lf, setLf] = useState("전국"); 
   const [mf, setMf] = useState("전체"); 
   const [showFav, setShowFav] = useState(false);
+  
   const [jobs, setJobs] = useState([]);
   const [ld, setLd] = useState(true);
   const [demo, setDemo] = useState(false);
@@ -99,7 +102,7 @@ export default function App() {
     return () => clearInterval(ref.current);
   }, [load]);
 
-  // 필터 로직 수정 (탭 선택 반영)
+  // 필터 로직: 탭, 경남 전용 지역, 기술직, 관심공고 반영
   const fj = jobs.filter(j => 
     (viewTab === "all" || (viewTab === "applied" && applied[j.id])) &&
     (lf === "전국" || (lf === "경남(근무지)" && j.isGyeongnam) || (lf === "가점(이전기관)" && j.isTransferAgency)) &&
