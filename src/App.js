@@ -12,7 +12,6 @@ const DAYS_KR = ["일","월","화","수","목","금","토"];
 
 function getDIM(y, m) { return new Date(y, m + 1, 0).getDate(); }
 function getFD(y, m) { return new Date(y, m, 1).getDay(); }
-function fmt(d) { const x = new Date(d); return `${x.getMonth()+1}/${x.getDate()}`; }
 function inR(d, s, e) {
   const a = new Date(d), b = new Date(s), c = new Date(e);
   a.setHours(0,0,0,0); b.setHours(0,0,0,0); c.setHours(0,0,0,0);
@@ -39,13 +38,10 @@ export default function App() {
   const [yr, setYr] = useState(now.getFullYear());
   const [mo, setMo] = useState(now.getMonth());
   const [sel, setSel] = useState(null);
-  const [viewTab, setViewTab] = useState("all");
-  
-  // 경남 버전 전용 지역 필터 세팅
+  const [viewTab, setViewTab] = useState("all"); 
   const [lf, setLf] = useState("전국"); 
   const [mf, setMf] = useState("전체"); 
   const [showFav, setShowFav] = useState(false);
-  
   const [jobs, setJobs] = useState([]);
   const [ld, setLd] = useState(true);
   const [demo, setDemo] = useState(false);
@@ -102,7 +98,6 @@ export default function App() {
     return () => clearInterval(ref.current);
   }, [load]);
 
-  // 필터 로직: 탭, 경남 전용 지역, 기술직, 관심공고 반영
   const fj = jobs.filter(j => 
     (viewTab === "all" || (viewTab === "applied" && applied[j.id])) &&
     (lf === "전국" || (lf === "경남(근무지)" && j.isGyeongnam) || (lf === "가점(이전기관)" && j.isTransferAgency)) &&
@@ -165,11 +160,13 @@ export default function App() {
         </div>
         <div className="card-footer">
           <span className="date-range">{job.startDate} ~ {job.endDate}</span>
-          <label className="checkbox-wrapper" onClick={(e) => e.stopPropagation()}>
-            <input type="checkbox" checked={!!isApplied} onChange={() => toggleApplied(job.id)} />
-            <div className="custom-checkbox">{isApplied ? "✓" : ""}</div>
-            <span className={`checkbox-label ${isApplied ? "checked-text" : ""}`}>{isApplied ? "지원완료" : "미지원"}</span>
-          </label>
+          {showCheck && (
+            <label className="checkbox-wrapper" onClick={(e) => e.stopPropagation()}>
+              <input type="checkbox" checked={!!isApplied} onChange={() => toggleApplied(job.id)} />
+              <div className="custom-checkbox">{isApplied ? "✓" : ""}</div>
+              <span className={`checkbox-label ${isApplied ? "checked-text" : ""}`}>{isApplied ? "지원완료" : "미지원"}</span>
+            </label>
+          )}
         </div>
       </div>
     );
@@ -229,8 +226,17 @@ export default function App() {
     .custom-checkbox { width: 16px; height: 16px; border: 2px solid #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px; }
     input:checked + .custom-checkbox { background: #0f172a; border-color: #0f172a; }
 
+    .error-banner { background: #fef2f2; border-bottom: 1px solid #fca5a5; color: #b91c1c; padding: 10px 5%; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+
     @media (max-width: 1024px) { .main-grid { grid-template-columns: 1fr; } .list-section { position: static; height: auto; } }
   `}</style>
+
+  {apiError && (
+    <div className="error-banner">
+      <span style={{ fontSize: 16 }}>🚨</span>
+      <span>Vercel 서버 통신 에러 발생! {apiError}</span>
+    </div>
+  )}
 
   <header className="header">
     <div className="header-top">
@@ -305,7 +311,7 @@ export default function App() {
             <h3 style={{fontSize:18, fontWeight:800}}>{mo+1}/{sel.day} 마감 <span>{sel.jobs.length}건</span></h3>
             <button className="filter-btn" onClick={() => setPn(false)}>전체 달력 보기</button>
           </div>
-          {sel.jobs.slice().sort((a,b) => new Date(a.endDate)-new Date(b.endDate)).map(job => <JobCard key={job.id} job={job} />)}
+          {sel.jobs.slice().sort((a,b) => new Date(a.endDate)-new Date(b.endDate)).map(job => <JobCard key={job.id} job={job} showCheck={true} />)}
         </div>
       )}
     </section>
@@ -315,7 +321,7 @@ export default function App() {
         {viewTab === "applied" ? "지원 완료 목록" : "진행중인 공고"} {act.length}건
       </div>
       <div className="scroll-area">
-        {act.slice().sort((a,b) => new Date(a.endDate)-new Date(b.endDate)).map(job => <JobCard key={job.id} job={job} />)}
+        {act.slice().sort((a,b) => new Date(a.endDate)-new Date(b.endDate)).map(job => <JobCard key={job.id} job={job} showCheck={true} />)}
       </div>
     </section>
   </main>
