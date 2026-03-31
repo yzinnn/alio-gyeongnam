@@ -51,9 +51,14 @@ export default async function handler(req, res) {
         const hireNames = String(item.hireTypeNmLst || "");
         const title = String(item.recrutPbancTtl || "");
         
+        // 정규직 필터
         const isRegular = hireTypes.includes("R1010") || hireNames.includes("정규직");
+        
+        // 짭규직 컷
         const fakeRegularRegex = /인턴|기간제|촉탁|계약|단기|대체|위촉|별정|일용|노무|알바|수습|체험|휴직/;
         const isFake = fakeRegularRegex.test(title) || fakeRegularRegex.test(hireNames);
+
+        // 특수 전형 컷
         const isSpecial = /보훈|장애|고졸/.test(title) || /보훈|장애|고졸/.test(hireNames);
 
         if (!isRegular || isFake || isSpecial) return false;
@@ -61,21 +66,12 @@ export default async function handler(req, res) {
       })
       .map((item) => {
         const ncsCodes = String(item.ncsCdLst || "");
-        const ncsNames = String(item.ncsCdNmLst || "");
-        const title = String(item.recrutPbancTtl || "");
         const companyName = String(item.instNm || "");
         const regions = String(item.workRgnLst || "");
         const regionNames = String(item.workRgnNmLst || "");
         
-        // 1. 엄격한 기계직 (NCS 기계 R600015 또는 명시적 기계 직무)
-        const isMachine = ncsCodes.includes("R600015") || ncsNames.includes("기계") || title.includes("기계");
-        
-        // 2. 넓은 범위의 기술직 (기계 포함, 전기/전자, 정보통신, 건설, 환경, 화학 등 이공계 전반)
-        const techNcs = ["R600014", "R600015", "R600016", "R600017", "R600019", "R600020", "R600023"];
-        const hasTechNcs = techNcs.some(c => ncsCodes.includes(c));
-        // 기관명에 포함된 '기술'은 무시하고 직무/제목에 있는 기술 키워드만 잡음
-        const hasTechKeyword = /설비|정비|엔지니어|플랜트|전기|전자|통신|건축|토목|환경|화학/.test(title) || (title.includes("기술") && !companyName.includes("기술"));
-        const isTech = isMachine || hasTechNcs || hasTechKeyword;
+        // ⭐️ 오직 공공기관 공식 NCS 기계직 코드(R600015)만 100% 엄격하게 판별 (텍스트 매칭 일절 삭제)
+        const isMachine = ncsCodes.includes("R600015"); [cite: 36]
         
         const isTransferAgency = GYEONGNAM_AGENCIES.some(agency => companyName.includes(agency));
         const isGyeongnam = regions.includes("R3022") || regionNames.includes("경남") || regionNames.includes("창원") || regionNames.includes("진주");
@@ -87,10 +83,9 @@ export default async function handler(req, res) {
         return {
           id: item.recrutPblntSn || 0,
           company: companyName,
-          title: title,
+          title: item.recrutPbancTtl || "",
           type: "정규직", 
           isMachine,
-          isTech, // 기술직 속성 추가
           isTransferAgency, 
           isGyeongnam,
           location: locationTag,
