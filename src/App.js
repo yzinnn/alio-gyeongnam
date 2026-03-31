@@ -12,7 +12,6 @@ const DAYS_KR = ["일","월","화","수","목","금","토"];
 
 function getDIM(y, m) { return new Date(y, m + 1, 0).getDate(); }
 function getFD(y, m) { return new Date(y, m, 1).getDay(); }
-function fmt(d) { const x = new Date(d); return `${x.getMonth()+1}/${x.getDate()}`; }
 function inR(d, s, e) {
   const a = new Date(d), b = new Date(s), c = new Date(e);
   a.setHours(0,0,0,0); b.setHours(0,0,0,0); c.setHours(0,0,0,0);
@@ -149,7 +148,6 @@ export default function App() {
               <p className="job-title">{job.title}</p>
             </div>
           </div>
-          {/* 미감 복구: 버튼과 뱃지가 예쁘게 떨어지도록 flex 재설정 */}
           <div className="card-action-group">
             <span className={`d-day-badge ${d.u || d.x ? "urgent" : ""}`}>{d.t}</span>
             <button onClick={(e) => { e.stopPropagation(); window.open(targetUrl, "_blank"); }} className="link-btn">링크</button>
@@ -158,7 +156,6 @@ export default function App() {
         <div className="tag-group">
           <span className="tag" style={{ background: "#eff6ff", color: "#2563eb" }}>{job.type}</span>
           
-          {/* 기술직/기계직 태그 분리 적용 */}
           {job.isMachine ? (
             <span className="tag" style={{ background: "#fffbeb", color: "#b45309" }}>기계직</span>
           ) : job.isTech ? (
@@ -222,32 +219,17 @@ export default function App() {
     .scroll-area::-webkit-scrollbar { width: 5px; }
     .scroll-area::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 
-    /* 여기서부터 미감 완벽 복구 */
-    .modern-card { background: #ffffff; border-radius: 10px; padding: 16px; border: 1px solid #e2e8f0; margin-bottom: 12px; position: relative; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .modern-card { background: #ffffff; border-radius: 10px; padding: 14px; border: 1px solid #e2e8f0; margin-bottom: 10px; position: relative; overflow: hidden; }
     .applied-card { opacity: 0.6; }
-    .card-accent { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
-    .fav-btn { background: none; border: none; font-size: 18px; cursor: pointer; color: #fbbf24; margin-top: -2px; }
-    
-    .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; gap: 12px; }
-    .card-title-group { flex: 1; }
-    .company-name { font-size: 15px; font-weight: 800; color: #0f172a; margin-bottom: 4px; line-height: 1.4; word-break: keep-all; }
-    .job-title { font-size: 13px; color: #475569; line-height: 1.4; word-break: keep-all; }
-    
-    /* 우측 버튼 그룹 여백 및 정렬 완벽 수정 */
-    .card-action-group { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
-    .d-day-badge { background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 800; text-align: center; min-width: 52px; }
-    .d-day-badge.urgent { background: #fef2f2; color: #dc2626; }
-    .link-btn { background: #eff6ff; color: #2563eb; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 800; cursor: pointer; transition: background 0.2s; width: 100%; text-align: center; }
-    .link-btn:hover { background: #dbeafe; }
-
-    .tag-group { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; padding-left: 26px; align-items: center; }
-    .tag { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: -0.3px; }
-    .people-count { font-size: 12px; color: #64748b; font-weight: 700; margin-left: 4px; }
-    
-    .card-footer { display: flex; justify-content: space-between; border-top: 1px dashed #e2e8f0; padding-top: 12px; padding-left: 26px; align-items: center; }
+    .card-accent { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
+    .fav-btn { background: none; border: none; font-size: 16px; cursor: pointer; color: #fbbf24; }
+    .tag-group { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; padding-left: 24px; }
+    .tag { padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+    .people-count { font-size: 11px; color: #64748b; font-weight: 700; margin-left: 4px; }
+    .card-footer { display: flex; justify-content: space-between; border-top: 1px dashed #e2e8f0; padding-top: 10px; padding-left: 24px; }
     .checkbox-wrapper { display: flex; align-items: center; gap: 6px; cursor: pointer; }
     .checkbox-wrapper input { display: none; }
-    .custom-checkbox { width: 18px; height: 18px; border: 2px solid #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px; transition: all 0.2s; }
+    .custom-checkbox { width: 16px; height: 16px; border: 2px solid #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px; }
     input:checked + .custom-checkbox { background: #0f172a; border-color: #0f172a; }
 
     .error-banner { background: #fef2f2; border-bottom: 1px solid #fca5a5; color: #b91c1c; padding: 10px 5%; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
