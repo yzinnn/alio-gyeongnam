@@ -19,11 +19,8 @@ export default async function handler(req, res) {
     }
 
     const API_KEY = process.env.ALIO_API_KEY;
-    if (!API_KEY) throw new Error("API_KEY not set");
-
     const BASE = "https://opendata.alio.go.kr/new/v1/recruit/list.do";
 
-    // ⭐️ Vercel 10초 타임아웃 방지: 병렬(동시) 렌더링 함수
     const fetchPage = async (pageNo) => {
       try {
         const url = `${BASE}?serviceKey=${encodeURIComponent(API_KEY)}&numOfRows=100&pageNo=${pageNo}&resultType=json`;
@@ -34,12 +31,9 @@ export default async function handler(req, res) {
         if (String(json.resultCode) !== "0" && String(json.resultCode) !== "200") return [];
         const items = json.result || [];
         return Array.isArray(items) ? items : [items];
-      } catch (e) {
-        return [];
-      }
+      } catch (e) { return []; }
     };
 
-    // 1~10페이지(진행 중인 공고 1000건)를 동시에 가져와서 1~2초 컷
     const pages = Array.from({ length: 10 }, (_, i) => i + 1);
     const results = await Promise.all(pages.map(fetchPage));
     const allItems = results.flat();
@@ -51,16 +45,12 @@ export default async function handler(req, res) {
         const hireNames = String(item.hireTypeNmLst || "");
         const title = String(item.recrutPbancTtl || "");
         
-        // 정규직 필터
         const isRegular = hireTypes.includes("R1010") || hireNames.includes("정규직");
-        // 짭규직 컷
         const fakeRegularRegex = /인턴|기간제|촉탁|계약|단기|대체|위촉|별정|일용|노무|알바|수습|체험|휴직/;
         const isFake = fakeRegularRegex.test(title) || fakeRegularRegex.test(hireNames);
-        // 특수 전형 컷
         const isSpecial = /보훈|장애|고졸/.test(title) || /보훈|장애|고졸/.test(hireNames);
 
-        if (!isRegular || isFake || isSpecial) return false;
-        return true;
+        return isRegular && !isFake && !isSpecial;
       })
       .map((item) => {
         const ncsCodes = String(item.ncsCdLst || "");
@@ -68,8 +58,12 @@ export default async function handler(req, res) {
         const regions = String(item.workRgnLst || "");
         const regionNames = String(item.workRgnNmLst || "");
         
-        // 오직 R600015 코드만 살림
+        // ⭐️ 기계직 (NCS R600015) 
         const isMachine = ncsCodes.includes("R600015");
+        
+        // ⭐️ 기술직 전체 (NCS 건설~환경에너지 코드군) 
+        const techCodes = ["R600014", "R600015", "R600016", "R600017", "R600019", "R600020", "R600023"];
+        const isTech = techCodes.some(code => ncsCodes.includes(code));
         
         const isTransferAgency = GYEONGNAM_AGENCIES.some(agency => companyName.includes(agency));
         const isGyeongnam = regions.includes("R3022") || regionNames.includes("경남") || regionNames.includes("창원") || regionNames.includes("진주");
@@ -84,32 +78,21 @@ export default async function handler(req, res) {
           title: item.recrutPbancTtl || "",
           type: "정규직", 
           isMachine,
+          isTech,
           isTransferAgency, 
           isGyeongnam,
           location: locationTag,
-          startDate: normDate(item.pbancBgngYmd),
-          endDate: normDate(item.pbancEndYmd),
+          startDate: item.pbancBgngYmd,
+          endDate: item.pbancEndYmd,
           people: parseInt(item.recrutNope) || 0,
           url: item.srcUrl || `https://job.alio.go.kr/recruitView.do?recrutPblntSn=${item.recrutPblntSn}`,
           ongoing: item.ongoingYn === "Y",
         };
       });
 
-    // 중복 제거
     const uniqueFiltered = Array.from(new Map(filtered.map(item => [item.id, item])).values());
-
     cachedData = uniqueFiltered;
     cacheTimestamp = now;
-    return res.status(200).json({ success: true, data: uniqueFiltered, lastUpdated: new Date(now).toISOString() });
-  } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
-  }
-}
-
-function normDate(d) {
-  if (!d) return "";
-  const s = String(d).replace(/[.\-/\s]/g, "");
-  if (s.length === 8) return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
-  if (/^\d{4}-\d{2}-\d{2}/.test(d)) return String(d).slice(0,10);
-  return String(d);
+    return res.status(200).json({ success: true, data: uniqueFiltered });
+  } catch (err) { return res.status(500).json({ success: false, error: err.message }); }
 }
