@@ -37,7 +37,7 @@ export default function App() {
   const now = new Date();
   const [yr, setYr] = useState(now.getFullYear());
   const [mo, setMo] = useState(now.getMonth());
-  const [sel, setSel] = useState(null);
+  const [sel, setSel] = useState(null); // 이제 jobs 스냅샷을 저장하지 않고 날짜만 저장합니다!
   const [viewTab, setViewTab] = useState("all");
   
   const [lf, setLf] = useState("전국"); 
@@ -100,7 +100,7 @@ export default function App() {
     return () => clearInterval(ref.current);
   }, [load]);
 
-  // 필터 로직 업데이트: 기술직, 기계직 분리
+  // 메인 필터링 로직
   const fj = jobs.filter(j => 
     (viewTab === "all" || (viewTab === "applied" && applied[j.id])) &&
     (lf === "전국" || (lf === "경남(근무지)" && j.isGyeongnam) || (lf === "가점(이전기관)" && j.isTransferAgency)) &&
@@ -121,13 +121,17 @@ export default function App() {
   const ts = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
   const act = fj.filter(j => !calcDD(j.endDate).x);
 
+  // 날짜 클릭 시 스냅샷이 아니라 '선택된 날짜'만 저장
   const click = (day) => {
     if (!day) return;
     const ds = `${yr}-${String(mo+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-    setSel({ day, ds, jobs: jfd(ds) }); setPn(true);
+    setSel({ day, ds }); setPn(true);
   };
   const pv = () => { if (mo === 0) { setYr(y => y - 1); setMo(11); } else { setMo(m => m - 1); } setPn(false); };
   const nx = () => { if (mo === 11) { setYr(y => y + 1); setMo(0); } else { setMo(m => m + 1); } setPn(false); };
+
+  // 선택된 날짜의 공고 목록을 렌더링 시점에 동적으로 계산 (필터 변경 즉시 반영)
+  const selectedJobs = sel ? jfd(sel.ds) : [];
 
   const JobCard = ({ job, showCheck }) => {
     const d = calcDD(job.endDate);
@@ -169,11 +173,13 @@ export default function App() {
         </div>
         <div className="card-footer">
           <span className="date-range">{job.startDate} ~ {job.endDate}</span>
-          <label className="checkbox-wrapper" onClick={(e) => e.stopPropagation()}>
-            <input type="checkbox" checked={!!isApplied} onChange={() => toggleApplied(job.id)} />
-            <div className="custom-checkbox">{isApplied ? "✓" : ""}</div>
-            <span className={`checkbox-label ${isApplied ? "checked-text" : ""}`}>{isApplied ? "지원완료" : "미지원"}</span>
-          </label>
+          {showCheck && (
+            <label className="checkbox-wrapper" onClick={(e) => e.stopPropagation()}>
+              <input type="checkbox" checked={!!isApplied} onChange={() => toggleApplied(job.id)} />
+              <div className="custom-checkbox">{isApplied ? "✓" : ""}</div>
+              <span className={`checkbox-label ${isApplied ? "checked-text" : ""}`}>{isApplied ? "지원완료" : "미지원"}</span>
+            </label>
+          )}
         </div>
       </div>
     );
@@ -219,17 +225,30 @@ export default function App() {
     .scroll-area::-webkit-scrollbar { width: 5px; }
     .scroll-area::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 
-    .modern-card { background: #ffffff; border-radius: 10px; padding: 14px; border: 1px solid #e2e8f0; margin-bottom: 10px; position: relative; overflow: hidden; }
+    .modern-card { background: #ffffff; border-radius: 10px; padding: 16px; border: 1px solid #e2e8f0; margin-bottom: 12px; position: relative; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     .applied-card { opacity: 0.6; }
-    .card-accent { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
-    .fav-btn { background: none; border: none; font-size: 16px; cursor: pointer; color: #fbbf24; }
-    .tag-group { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; padding-left: 24px; }
-    .tag { padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
-    .people-count { font-size: 11px; color: #64748b; font-weight: 700; margin-left: 4px; }
-    .card-footer { display: flex; justify-content: space-between; border-top: 1px dashed #e2e8f0; padding-top: 10px; padding-left: 24px; }
+    .card-accent { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+    .fav-btn { background: none; border: none; font-size: 18px; cursor: pointer; color: #fbbf24; margin-top: -2px; }
+    
+    .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; gap: 12px; }
+    .card-title-group { flex: 1; }
+    .company-name { font-size: 15px; font-weight: 800; color: #0f172a; margin-bottom: 4px; line-height: 1.4; word-break: keep-all; }
+    .job-title { font-size: 13px; color: #475569; line-height: 1.4; word-break: keep-all; }
+    
+    .card-action-group { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
+    .d-day-badge { background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 800; text-align: center; min-width: 52px; }
+    .d-day-badge.urgent { background: #fef2f2; color: #dc2626; }
+    .link-btn { background: #eff6ff; color: #2563eb; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 800; cursor: pointer; transition: background 0.2s; width: 100%; text-align: center; }
+    .link-btn:hover { background: #dbeafe; }
+
+    .tag-group { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; padding-left: 26px; align-items: center; }
+    .tag { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: -0.3px; }
+    .people-count { font-size: 12px; color: #64748b; font-weight: 700; margin-left: 4px; }
+    
+    .card-footer { display: flex; justify-content: space-between; border-top: 1px dashed #e2e8f0; padding-top: 12px; padding-left: 26px; align-items: center; }
     .checkbox-wrapper { display: flex; align-items: center; gap: 6px; cursor: pointer; }
     .checkbox-wrapper input { display: none; }
-    .custom-checkbox { width: 16px; height: 16px; border: 2px solid #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px; }
+    .custom-checkbox { width: 18px; height: 18px; border: 2px solid #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px; transition: all 0.2s; }
     input:checked + .custom-checkbox { background: #0f172a; border-color: #0f172a; }
 
     .error-banner { background: #fef2f2; border-bottom: 1px solid #fca5a5; color: #b91c1c; padding: 10px 5%; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
@@ -269,7 +288,6 @@ export default function App() {
       </div>
       <div style={{ width: 1, background: "#e2e8f0" }}/>
       
-      {/* 기술/기계 직무 분리 필터 */}
       <div className="filter-group">
         <button className={`filter-btn ${mf==="전체"?"active":""}`} onClick={() => setMf("전체")}>전체 직무</button>
         <button className={`filter-btn ${mf==="기술직"?"active":""}`} onClick={() => setMf("기술직")}>기술직 전체</button>
@@ -318,10 +336,11 @@ export default function App() {
       {pn && sel && (
         <div className="detail-list-container">
           <div style={{ display:'flex', justifyContent:'space-between', marginBottom:16 }}>
-            <h3 style={{fontSize:18, fontWeight:800}}>{mo+1}/{sel.day} 마감 <span>{sel.jobs.length}건</span></h3>
+            <h3 style={{fontSize:18, fontWeight:800}}>{mo+1}/{sel.day} 마감 <span>{selectedJobs.length}건</span></h3>
             <button className="filter-btn" onClick={() => setPn(false)}>전체 달력 보기</button>
           </div>
-          {sel.jobs.slice().sort((a,b) => new Date(a.endDate)-new Date(b.endDate)).map(job => <JobCard key={job.id} job={job} showCheck={true} />)}
+          {/* 스냅샷이 아닌 실시간으로 필터링된 배열(selectedJobs) 사용 */}
+          {selectedJobs.slice().sort((a,b) => new Date(a.endDate)-new Date(b.endDate)).map(job => <JobCard key={job.id} job={job} showCheck={true} />)}
         </div>
       )}
     </section>
