@@ -63,16 +63,19 @@ export default async function handler(req, res) {
         const hireNames = String(item.hireTypeNmLst || "");
         const title = String(item.recrutPbancTtl || "");
         
-        // 1. 정규직 필터 & 인턴/기간제 제외
+        // 1. 기본 정규직 필터 (R1010 코드가 있거나 이름에 정규직이 있는 경우)
         const isRegular = hireTypes.includes("R1010") || hireNames.includes("정규직");
-        const isTemp = /인턴|기간제|촉탁/.test(title) || /인턴|기간제|촉탁/.test(hireNames);
         
-        // 2. 특수 전형(보훈, 장애, 고졸) 완벽 제외
+        // 2. 가짜 정규직(짭규직) 초강력 암살 필터 (단기, 노무, 대체, 계약 등 모두 컷)
+        const fakeRegularRegex = /인턴|기간제|촉탁|계약|단기|대체|위촉|별정|일용|노무|알바|수습|체험|휴직/;
+        const isTemp = fakeRegularRegex.test(title) || fakeRegularRegex.test(hireNames);
+        
+        // 3. 특수 전형(보훈, 장애, 고졸) 완벽 제외
         const isSpecial = /보훈|장애|고졸/.test(title) || /보훈|장애|고졸/.test(hireNames);
 
+        // 진짜 정규직이 아니거나, 가짜 정규직 키워드가 있거나, 특수전형이면 날려버림
         if (!isRegular || isTemp || isSpecial) return false;
         
-        // 전국 데이터를 모두 가져오기 위해 지역 필터 제거 (프론트에서 제어)
         return true;
       })
       .map((item) => {
@@ -82,12 +85,10 @@ export default async function handler(req, res) {
         const regions = String(item.workRgnLst || "");
         const regionNames = String(item.workRgnNmLst || "");
         
-        // 기계직, 이전기관, 경남근무지 독립적 판별
         const isMachine = ncsCodes.includes("R600015") || ncsNames.includes("기계");
         const isTransferAgency = GYEONGNAM_AGENCIES.some(agency => companyName.includes(agency));
         const isGyeongnam = regions.includes("R3022") || regionNames.includes("경남") || regionNames.includes("창원") || regionNames.includes("진주");
 
-        // 카드 노출용 위치 태그 최적화
         let locationTag = regionNames.split(',')[0] || "전국";
         if (isTransferAgency) locationTag = "이전기관(가점)";
         else if (isGyeongnam) locationTag = "경남(근무지)";
