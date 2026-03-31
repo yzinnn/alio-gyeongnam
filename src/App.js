@@ -1,8 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 const API_URL = "/api/jobs";
-
-const DAYS_KR = ["일","월","화","수","목","금","토"];
 
 function inR(d, s, e) {
   const a = new Date(d), b = new Date(s), c = new Date(e);
@@ -29,8 +27,6 @@ export default function App() {
   const [showFav, setShowFav] = useState(false);
   const [jobs, setJobs] = useState([]);
   const [ld, setLd] = useState(true);
-  const [lu, setLu] = useState(null);
-  const [pn, setPn] = useState(false);
   const [applied, setApplied] = useState(() => JSON.parse(localStorage.getItem("applied") || "{}"));
   const [favorites, setFavorites] = useState(() => JSON.parse(localStorage.getItem("favorites") || "{}"));
 
@@ -41,12 +37,12 @@ export default function App() {
     setFavorites(p => { const n = {...p}; if(n[id]) delete n[id]; else n[id]=true; localStorage.setItem("favorites", JSON.stringify(n)); return n; });
   };
 
-  const load = useCallback(async (isForce = false) => {
+  const load = useCallback(async () => {
     setLd(true);
     try {
-      const r = await fetch(isForce ? `${API_URL}?force=true` : API_URL);
+      const r = await fetch(API_URL);
       const j = await r.json();
-      if (j.success) { setJobs(j.data); setLu(new Date().toISOString()); }
+      if (j.success) setJobs(j.data);
     } catch (e) { console.error(e); } finally { setLd(false); }
   }, []);
 
@@ -88,7 +84,7 @@ export default function App() {
         <div className="tag-group">
           <span className="tag" style={{ background: "#eff6ff", color: "#2563eb" }}>{job.type}</span>
           {job.isMachine ? <span className="tag" style={{ background: "#fffbeb", color: "#b45309" }}>기계직</span> : job.isTech && <span className="tag" style={{ background: "#f5f3ff", color: "#6d28d9" }}>기술직</span>}
-          <span className="tag tag-location">{job.location}</span>
+          <span className="tag tag-location" style={{ background: job.isTransferAgency ? "#ecfdf5" : (job.isGyeongnam ? "#fefce8" : "#f1f5f9"), color: job.isTransferAgency ? "#059669" : (job.isGyeongnam ? "#a16207" : "#475569") }}>{job.location}</span>
           {job.people > 0 && <span className="people-count">{job.people}명 채용</span>}
         </div>
         <div className="card-footer">
@@ -104,7 +100,7 @@ export default function App() {
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', sans-serif; }
         body { background-color: #f8fafc; color: #0f172a; }
-        .header { background: #ffffff; padding: 16px 5%; border-bottom: 1px solid #e2e8f0; sticky; top: 0; z-index: 10; }
+        .header { background: #ffffff; padding: 16px 5%; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 10; }
         .view-tabs { display: flex; gap: 20px; border-bottom: 2px solid #f1f5f9; margin: 12px 0; }
         .view-tab { padding: 8px 4px; font-size: 15px; font-weight: 700; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; }
         .view-tab.active { color: #2563eb; border-bottom-color: #2563eb; }
@@ -120,9 +116,12 @@ export default function App() {
         .card-accent { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
         .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
         .card-title-group { display: flex; gap: 8px; }
+        .company-name { font-size: 15px; font-weight: 800; }
+        .job-title { font-size: 13px; color: #475569; }
         .card-action-group { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
         .tag-group { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; padding-left: 20px; }
         .tag { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+        .tag-location { background: #f1f5f9; color: #475569; }
         .card-footer { display: flex; justify-content: space-between; border-top: 1px dashed #e2e8f0; padding-top: 12px; padding-left: 20px; align-items: center; }
         .checkbox-wrapper { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; }
         .custom-checkbox { width: 18px; height: 18px; border: 2px solid #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
@@ -130,12 +129,13 @@ export default function App() {
         .link-btn { background: #eff6ff; color: #2563eb; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 800; }
         .fav-btn { background: none; border: none; cursor: pointer; font-size: 18px; }
         .applied-card { opacity: 0.6; }
+        @media (max-width: 1024px) { .main-grid { grid-template-columns: 1fr; } }
       `}</style>
 
       <header className="header">
         <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <h1>공공기관 정규직 채용 달력</h1>
-          <button className="filter-btn" onClick={() => load(true)}>↻ {ld ? "로딩중" : "업데이트"}</button>
+          <h1 style={{fontSize: 20}}>공공기관 정규직 채용 달력</h1>
+          <button className="filter-btn" onClick={() => load()}>↻ {ld ? "로딩중" : "업데이트"}</button>
         </div>
         <div className="view-tabs">
           <div className={`view-tab ${viewTab === "all" ? "active" : ""}`} onClick={() => setViewTab("all")}>전체 공고</div>
@@ -151,22 +151,22 @@ export default function App() {
 
       <main className="main-grid">
         <section className="calendar-section">
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
-            <button onClick={() => { if(mo===0){setYr(yr-1);setMo(11);}else setMo(mo-1); }}>‹</button>
-            <h2>{yr}년 {mo+1}월</h2>
-            <button onClick={() => { if(mo===11){setYr(yr+1);setMo(0);}else setMo(mo+1); }}>›</button>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20, alignItems: "center" }}>
+            <button className="filter-btn" onClick={() => { if(mo===0){setYr(yr-1);setMo(11);}else setMo(mo-1); }}>‹</button>
+            <h2 style={{fontSize: 20}}>{yr}년 {mo+1}월</h2>
+            <button className="filter-btn" onClick={() => { if(mo===11){setYr(yr+1);setMo(0);}else setMo(mo+1); }}>›</button>
           </div>
           {weeks.map((week, wi) => (
             <div key={wi} className="cal-week-row">
               {week.map((day, di) => {
                 const ds = `${yr}-${String(mo+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-                const count = day ? jfd(ds).length : 0;
+                const dailyJobs = day ? jfd(ds) : [];
                 return (
                   <div key={di} className={`cal-cell ${sel?.ds === ds ? "selected" : ""}`} onClick={() => day && setSel({day, ds})}>
-                    <span>{day}</span>
-                    <div style={{ marginTop: "auto", display: "flex", gap: 2 }}>
-                      {day && jfd(ds).slice(0, 3).map((j, i) => <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: j.isMachine ? "#f59e0b" : "#3b82f6" }} />)}
-                      {count > 3 && <span style={{ fontSize: 10 }}>+{count-3}</span>}
+                    <span style={{fontSize: 13, fontWeight: 700}}>{day}</span>
+                    <div style={{ marginTop: "auto", display: "flex", gap: 2, flexWrap: "wrap" }}>
+                      {dailyJobs.slice(0, 3).map((j, i) => <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: j.isMachine ? "#f59e0b" : (j.isTech ? "#8b5cf6" : "#3b82f6") }} />)}
+                      {dailyJobs.length > 3 && <span style={{ fontSize: 10, fontWeight: 700 }}>+{dailyJobs.length-3}</span>}
                     </div>
                   </div>
                 );
@@ -175,7 +175,7 @@ export default function App() {
           ))}
           {sel && (
             <div style={{ marginTop: 24, borderTop: "2px dashed #e2e8f0", paddingTop: 24 }}>
-              <h3>{sel.day}일 마감 공고 {selectedJobs.length}건</h3>
+              <h3 style={{marginBottom: 16}}>{sel.day}일 마감 공고 {selectedJobs.length}건</h3>
               {selectedJobs.map(j => <JobCard key={j.id} job={j} />)}
             </div>
           )}
@@ -183,7 +183,7 @@ export default function App() {
 
         <section>
           <div style={{ marginBottom: 12, fontWeight: 800 }}>진행중 공고 {act.length}건</div>
-          <div style={{ height: "calc(100vh - 250px)", overflowY: "auto" }}>
+          <div style={{ height: "calc(100vh - 250px)", overflowY: "auto", paddingRight: 4 }}>
             {act.sort((a,b) => new Date(a.endDate) - new Date(b.endDate)).map(j => <JobCard key={j.id} job={j} />)}
           </div>
         </section>
